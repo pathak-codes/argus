@@ -1,6 +1,12 @@
 import subprocess
 import shutil
 import re
+import subprocess
+import shutil
+import re
+# Import our new database controller
+from database_engine import init_db, save_or_update_asset 
+
 
 def check_nmap_installed():
     """Ensures Nmap is available on the host system system path."""
