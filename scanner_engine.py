@@ -1,23 +1,9 @@
 import subprocess
 import shutil
 import re
-from concurrent.futures import ThreadPoolExecutor # Added for multi-threading
+from concurrent.futures import ThreadPoolExecutor
 from database_engine import init_db, save_or_update_asset 
 from screenshot_engine import capture_screenshot 
-import subprocess
-import shutil
-import re
-from database_engine import init_db, save_or_update_asset 
-# Import our brand new visual capture module
-from screenshot_engine import capture_screenshot 
-import subprocess
-import shutil
-import re
-import subprocess
-import shutil
-import re
-# Import our new database controller
-from database_engine import init_db, save_or_update_asset 
 
 
 def check_nmap_installed():
@@ -88,7 +74,7 @@ def parse_nmap_output(raw_output):
             continue
             
         lines = host.splitlines()
-        ip_match = re.match(r"^([^\s]+)", lines)
+        ip_match = re.match(r"^([^\s]+)", lines[0])
         if not ip_match:
             continue
         ip_address = ip_match.group(1)
@@ -157,6 +143,7 @@ def run_scan(command):
     except subprocess.CalledProcessError as e:
         print(f"[-] Scan failed: {e.stderr}")
         return None
+
 if __name__ == "__main__":
     check_nmap_installed()
     
