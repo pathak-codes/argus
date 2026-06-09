@@ -52,19 +52,64 @@ def build_nmap_command(target, port_choice, custom_ports=""):
 
 def parse_nmap_output(raw_output):
     """
-    Parses raw Nmap text to find hosts, open ports, and http titles.
-    Hides all the 'junk' text (closed ports, latency info, etc).
+    Parses Nmap text, hides junk, prints a table, and saves/flags changes in the database.
     """
     if not raw_output:
         return
     
-    # Split output by individual hosts
-    hosts_data = raw_output.split("Nmap scan report for ")
-    discovered_assets = 0
+    # Initialize the database file/table structure
+    init_db()
     
-    print("-" * 75)
-    print(f"{'IP ADDRESS':<18} | {'PORT':<6} | {'SERVICE / VERSION':<20} | {'WEB TITLE'}")
-    print("-" * 75)
+    hosts_data = raw_output.split("Nmap scan report for ")
+    new_discoveries = 0
+    total_found = 0
+    
+    print("-" * 85)
+    print(f"{'STATUS':<8} | {'IP ADDRESS':<16} | {'PORT':<6} | {'SERVICE / VERSION':<18} | {'WEB TITLE'}")
+    print("-" * 85)
+
+    for host in hosts_data:
+        if not host.strip():
+            continue
+            
+        lines = host.splitlines()
+        ip_match = re.match(r"^([^\s]+)", lines[0])
+        if not ip_match:
+            continue
+        ip_address = ip_match.group(1)
+        
+        current_port = ""
+        current_service = ""
+        
+        for line in lines:
+            port_match = re.search(r"^(\d+/tcp)\s+open\s+([^\s]+)\s*(.*)", line)
+            if port_match:
+                current_port = port_match.group(1)
+                service_name = port_match.group(2)
+                version_info = port_match.group(3)
+                current_service = f"{service_name} ({version_info})" if version_info else service_name
+                
+            title_match = re.search(r"\|_http-title:\s*(.*)", line)
+            if title_match and current_port:
+                web_title = title_match.group(1).strip()
+                total_found += 1
+                
+                # Commit to database and check if it's uniquely new
+                is_new = save_or_update_asset(ip_address, current_port, current_service, web_title)
+                
+                # Visual Tagging: Mark brand new infrastructure with [NEW]
+                status_tag = "[NEW]" if is_new else "[KNOWN]"
+                if is_new:
+                    new_discoveries += 1
+                
+                print(f"{status_tag:<8} | {ip_address:<16} | {current_port:<6} | {current_service:<18} | {web_title}")
+                
+                current_port = ""
+                current_service = ""
+
+    print("-" * 85)
+    print(f"[+] Scan Complete. Total Active: {total_found} | New Discoveries: {new_discoveries}")
+
 
     for host in hosts_data:
         if not host.strip():
