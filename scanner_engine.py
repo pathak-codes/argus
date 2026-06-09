@@ -7,7 +7,7 @@ from screenshot_engine import capture_screenshot
 
 
 def check_nmap_installed():
-    """Ensures Nmap is available on the host system system path."""
+    """Ensures Nmap is available on the host system path."""
     if shutil.which("nmap") is None:
         raise SystemExit("Error: Nmap is not installed or not in your system PATH.")
 
@@ -15,36 +15,28 @@ def build_nmap_command(target, port_choice, custom_ports=""):
     """
     Dynamically builds the Nmap command based on flexible port selection.
     """
-    # Core flags: Service detection (-sV), title script, and speed optimization (-T4)
     base_cmd = ["nmap", "-sV", "--script=http-title", "-T4"]
     
-    # Flexible Port Logic
     if port_choice == "1":
-        # Single specific port
         if not custom_ports:
             custom_ports = "80"
         base_cmd.extend(["-p", custom_ports])
         
     elif port_choice == "2":
-        # Multiple specific ports (comma-separated list)
         if not custom_ports:
             custom_ports = "80,443,8080"
         base_cmd.extend(["-p", custom_ports])
         
     elif port_choice == "3":
-        # Smart Web Preset (Extraordinary feature 1)
         base_cmd.extend(["-p", "80,443,3000,5000,8080,8443,8888"])
         
     elif port_choice == "4":
-        # All 65,535 ports + safety rate limiting
         base_cmd.extend(["-p-", "--min-rate", "1500"])
         print("\n[!] Warning: Scanning ALL ports. Safety rate-limiting applied.")
         
     else:
-        # Default to port 80 if choice is invalid
         base_cmd.extend(["-p", "80"])
 
-    # Append the target IP range at the very end
     base_cmd.append(target)
     return base_cmd
 
@@ -61,8 +53,6 @@ def parse_nmap_output(raw_output):
     hosts_data = raw_output.split("Nmap scan report for ")
     new_discoveries = 0
     total_found = 0
-    
-    # Store pending tasks for parallel processing
     screenshot_tasks = []
     
     print("=" * 90)
@@ -74,7 +64,9 @@ def parse_nmap_output(raw_output):
             continue
             
         lines = host.splitlines()
-        ip_match = re.match(r"^([^\s]+)", lines[0])
+        
+        # Safely capture target IP identifier from text block
+        ip_match = re.search(r"^([^\s]+)", host.strip())
         if not ip_match:
             continue
         ip_address = ip_match.group(1)
@@ -95,7 +87,6 @@ def parse_nmap_output(raw_output):
                 web_title = title_match.group(1).strip()
                 total_found += 1
                 
-                # Commit to local SQLite database
                 is_new = save_or_update_asset(ip_address, current_port, current_service, web_title)
                 
                 status_tag = "[NEW]" if is_new else "[KNOWN]"
@@ -103,8 +94,6 @@ def parse_nmap_output(raw_output):
                     new_discoveries += 1
                 
                 print(f"{status_tag:<8} | {ip_address:<16} | {current_port:<6} | {current_service:<18} | {web_title}")
-                
-                # Instead of running immediately, queue it for concurrent execution
                 screenshot_tasks.append((ip_address, current_port, web_title))
                 
                 current_port = ""
@@ -113,23 +102,17 @@ def parse_nmap_output(raw_output):
     print("=" * 90)
     print(f"[+] Scan Analysis Complete. Found {total_found} total web assets.")
     
-    # Trigger Parallel Screenshot Processing
     if screenshot_tasks:
         print(f"\n[~] Initializing Concurrency Engine. Processing {len(screenshot_tasks)} screenshots across 5 workers...")
         print("-" * 90)
         
-        # Max workers set to 5 to prevent consuming too much CPU/RAM on your system
         with ThreadPoolExecutor(max_workers=5) as executor:
-            # Map the arguments array unpack onto the screenshot function
             futures = [executor.submit(capture_screenshot, ip, prt, ttl) for ip, prt, ttl in screenshot_tasks]
-            
-            # Wait for all background browser actions to close cleanly
             for future in futures:
                 future.result() 
                 
         print("-" * 90)
         print(f"[✓] Visual Queue Completed. Check the 'captured_screenshots/' directory.")
-
 
 def run_scan(command):
     """Executes the Nmap scan and captures the raw text output."""
@@ -137,7 +120,6 @@ def run_scan(command):
     print("[+] Scan in progress... Please wait.\n")
     
     try:
-        # Runs the command and waits for it to complete
         result = subprocess.run(command, capture_output=True, text=True, check=True)
         return result.stdout
     except subprocess.CalledProcessError as e:
@@ -147,8 +129,7 @@ def run_scan(command):
 if __name__ == "__main__":
     check_nmap_installed()
     
-    # User Input Parameters
-    target_ip = input("Enter target IP or range (e.g., 51.20.0.1/22): ").strip()
+    target_ip = input("Enter target IP or range (e.g., scanme.nmap.org): ").strip()
     
     print("\nSelect Port Strategy:")
     print("1) One Specific Port")
@@ -161,7 +142,6 @@ if __name__ == "__main__":
     if choice in ["1", "2"]:
         custom = input("Enter your custom port(s): ").strip()
         
-    # Run the core process
     nmap_cmd = build_nmap_command(target_ip, choice, custom)
     raw_results = run_scan(nmap_cmd)
     parse_nmap_output(raw_results)
