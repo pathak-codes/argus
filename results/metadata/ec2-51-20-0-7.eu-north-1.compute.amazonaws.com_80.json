@@ -1,0 +1,22 @@
+{
+  "host": "ec2-51-20-0-7.eu-north-1.compute.amazonaws.com",
+  "port": "80",
+  "url": "http://ec2-51-20-0-7.eu-north-1.compute.amazonaws.com:80",
+  "method": "GET",
+  "status": 503,
+  "content_type": "text/html",
+  "content_length": 162,
+  "server": "awselb/2.0",
+  "title": "503 Service Temporarily Unavailable",
+  "redirect_location": "",
+  "redirect_count": 0,
+  "auth_scheme": "",
+  "has_form": false,
+  "has_js": false,
+  "visible_text_length": 71,
+  "error": "",
+  "body_preview": "<html>\r\n<head><title>503 Service Temporarily Unavailable</title></head>\r\n<body>\r\n<center><h1>503 Service Temporarily Unavailable</h1></center>\r\n</body>\r\n</html>\r\n",
+  "screenshot": "C:\\Users\\karti\\.vscode\\argus\\results\\screenshots\\ec2-51-20-0-7.eu-north-1.compute.amazonaws.com_80.png",
+  "analyzed_at": "2026-06-09T08:55:23.637221+00:00",
+  "dedup_key": "503 Service Temporarily Unavailable::503::162"
+}

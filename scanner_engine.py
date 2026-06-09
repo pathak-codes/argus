@@ -1,9 +1,10 @@
 import subprocess
 import shutil
 import re
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from database_engine import init_db, save_or_update_asset 
-from screenshot_engine import capture_screenshot 
+from screenshot_engine import capture_screenshot, close_all_browsers 
 
 
 def check_nmap_installed():
@@ -58,6 +59,7 @@ def parse_nmap_output(raw_output):
     print("=" * 90)
     print(f"{'STATUS':<8} | {'IP ADDRESS':<16} | {'PORT':<6} | {'SERVICE / VERSION':<18} | {'WEB TITLE'}")
     print("=" * 90)
+    sys.stdout.flush()
 
     for host in hosts_data:
         if not host.strip():
@@ -94,6 +96,7 @@ def parse_nmap_output(raw_output):
                     new_discoveries += 1
                 
                 print(f"{status_tag:<8} | {ip_address:<16} | {current_port:<6} | {current_service:<18} | {web_title}")
+                sys.stdout.flush()
                 screenshot_tasks.append((ip_address, current_port, web_title))
                 
                 current_port = ""
@@ -101,29 +104,72 @@ def parse_nmap_output(raw_output):
 
     print("=" * 90)
     print(f"[+] Scan Analysis Complete. Found {total_found} total web assets.")
+    sys.stdout.flush()
     
     if screenshot_tasks:
-        print(f"\n[~] Initializing Concurrency Engine. Processing {len(screenshot_tasks)} screenshots across 5 workers...")
+        print(f"\n[~] Processing {len(screenshot_tasks)} screenshots across 4 workers...")
+        print("[~] Each worker thread starts its own browser instance.")
         print("-" * 90)
-        
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(capture_screenshot, ip, prt, ttl) for ip, prt, ttl in screenshot_tasks]
-            for future in futures:
-                future.result() 
-                
-        print("-" * 90)
-        print(f"[✓] Visual Queue Completed. Check the 'captured_screenshots/' directory.")
+        sys.stdout.flush()
+
+        try:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = [executor.submit(capture_screenshot, ip, prt, ttl) for ip, prt, ttl in screenshot_tasks]
+                completed = 0
+                for future in futures:
+                    future.result()
+                    completed += 1
+                    sys.stdout.flush()
+
+            print("-" * 90)
+            print(f"[✓] Visual Capture Complete. Check the 'captured_screenshots/' directory.")
+            sys.stdout.flush()
+        finally:
+            close_all_browsers()
 
 def run_scan(command):
-    """Executes the Nmap scan and captures the raw text output."""
+    """Executes the Nmap scan with REAL-TIME output streaming."""
     print(f"\n[+] Executing: {' '.join(command)}")
-    print("[+] Scan in progress... Please wait.\n")
+    print("[+] Streaming output live:\n")
+    print("-" * 90)
+    sys.stdout.flush()
     
     try:
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        return result.stdout
-    except subprocess.CalledProcessError as e:
-        print(f"[-] Scan failed: {e.stderr}")
+        # Stream output line-by-line as nmap produces it (not buffered)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1  # Line buffered for real-time output
+        )
+        
+        output_lines = []
+        
+        # Read and print output in real-time
+        for line in process.stdout:
+            line = line.rstrip('\n')
+            print(line)
+            sys.stdout.flush()
+            output_lines.append(line)
+        
+        process.wait(timeout=600)  # Wait up to 10 minutes
+        
+        if process.returncode != 0:
+            print(f"\n[-] Scan completed with warnings (exit code {process.returncode})")
+        
+        print("-" * 90)
+        return "\n".join(output_lines)
+        
+    except subprocess.TimeoutExpired:
+        process.kill()
+        print("\n[-] Scan timeout after 10 minutes")
+        sys.stdout.flush()
+        return None
+        
+    except Exception as e:
+        print(f"\n[-] Scan error: {str(e)}")
+        sys.stdout.flush()
         return None
 
 if __name__ == "__main__":

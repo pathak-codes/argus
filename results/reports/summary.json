@@ -1,0 +1,27 @@
+{
+  "scan_metadata": {
+    "tool": "ARGUS Content Triage System",
+    "timestamp": "2026-06-09T08:55:23.637221+00:00",
+    "duration_seconds": 8.0,
+    "requests_per_second": 0.62
+  },
+  "summary": {
+    "total_targets": 5,
+    "total_analyzed": 5,
+    "meaningful_pages": 1,
+    "screenshots_saved": 1,
+    "duplicates_skipped": 0,
+    "errors": 0,
+    "interesting_hosts": 1
+  },
+  "status_distribution": {
+    "403": 1,
+    "404": 3,
+    "503": 1
+  },
+  "priority_distribution": {
+    "HIGH": 1,
+    "MEDIUM": 0,
+    "LOW": 0
+  }
+}
