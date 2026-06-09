@@ -64,28 +64,31 @@ def build_nmap_command(target, port_choice, custom_ports=""):
 
 def parse_nmap_output(raw_output):
     """
-    Parses Nmap text, hides junk, prints a table, and saves/flags changes in the database.
+    Parses Nmap text, updates the tracking database, and captures 
+    multiple screenshots simultaneously using a concurrent thread pool.
     """
     if not raw_output:
         return
     
-    # Initialize the database file/table structure
     init_db()
     
     hosts_data = raw_output.split("Nmap scan report for ")
     new_discoveries = 0
     total_found = 0
     
-    print("-" * 85)
+    # Store pending tasks for parallel processing
+    screenshot_tasks = []
+    
+    print("=" * 90)
     print(f"{'STATUS':<8} | {'IP ADDRESS':<16} | {'PORT':<6} | {'SERVICE / VERSION':<18} | {'WEB TITLE'}")
-    print("-" * 85)
+    print("=" * 90)
 
     for host in hosts_data:
         if not host.strip():
             continue
             
         lines = host.splitlines()
-        ip_match = re.match(r"^([^\s]+)", lines[0])
+        ip_match = re.match(r"^([^\s]+)", lines)
         if not ip_match:
             continue
         ip_address = ip_match.group(1)
@@ -106,69 +109,40 @@ def parse_nmap_output(raw_output):
                 web_title = title_match.group(1).strip()
                 total_found += 1
                 
-                # 1. Commit metadata to database
+                # Commit to local SQLite database
                 is_new = save_or_update_asset(ip_address, current_port, current_service, web_title)
                 
                 status_tag = "[NEW]" if is_new else "[KNOWN]"
                 if is_new:
                     new_discoveries += 1
                 
-                # Print clean, junk-filtered table row
                 print(f"{status_tag:<8} | {ip_address:<16} | {current_port:<6} | {current_service:<18} | {web_title}")
                 
-                # 2. Trigger Headless Screenshot Capture (Extraordinary Feature 3)
-                # This executes instantly while processing the target host
-                capture_screenshot(ip_address, current_port, web_title)
-                print("-" * 85) # Divider to make live terminal reading clean
+                # Instead of running immediately, queue it for concurrent execution
+                screenshot_tasks.append((ip_address, current_port, web_title))
                 
-                # Reset variables for the next port block
                 current_port = ""
                 current_service = ""
 
-
-    print("-" * 85)
-    print(f"[+] Scan Complete. Total Active: {total_found} | New Discoveries: {new_discoveries}")
-
-
-    for host in hosts_data:
-        if not host.strip():
-            continue
+    print("=" * 90)
+    print(f"[+] Scan Analysis Complete. Found {total_found} total web assets.")
+    
+    # Trigger Parallel Screenshot Processing
+    if screenshot_tasks:
+        print(f"\n[~] Initializing Concurrency Engine. Processing {len(screenshot_tasks)} screenshots across 5 workers...")
+        print("-" * 90)
+        
+        # Max workers set to 5 to prevent consuming too much CPU/RAM on your system
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            # Map the arguments array unpack onto the screenshot function
+            futures = [executor.submit(capture_screenshot, ip, prt, ttl) for ip, prt, ttl in screenshot_tasks]
             
-        # Extract the target IP address
-        lines = host.splitlines()
-        ip_match = re.match(r"^([^\s]+)", lines[0])
-        if not ip_match:
-            continue
-        ip_address = ip_match.group(1)
-        
-        current_port = ""
-        current_service = ""
-        
-        # Look through the host text block for open ports and script outputs
-        for line in lines:
-            # Match lines like: "80/tcp open  http    Apache httpd 2.4.49"
-            port_match = re.search(r"^(\d+/tcp)\s+open\s+([^\s]+)\s*(.*)", line)
-            if port_match:
-                current_port = port_match.group(1)
-                service_name = port_match.group(2)
-                version_info = port_match.group(3)
-                current_service = f"{service_name} ({version_info})" if version_info else service_name
+            # Wait for all background browser actions to close cleanly
+            for future in futures:
+                future.result() 
                 
-            # Match lines like: "|_http-title: Home - Corporate Portal"
-            title_match = re.search(r"\|_http-title:\s*(.*)", line)
-            if title_match and current_port:
-                web_title = title_match.group(1).strip()
-                
-                # Print clean, junk-filtered line (Extraordinary Feature 2)
-                print(f"{ip_address:<18} | {current_port:<6} | {current_service:<20} | {web_title}")
-                discovered_assets += 1
-                
-                # Reset tracking variables for the next port block
-                current_port = ""
-                current_service = ""
-
-    print("-" * 75)
-    print(f"[+] Extraction complete. Found {discovered_assets} active web assets.")
+        print("-" * 90)
+        print(f"[✓] Visual Queue Completed. Check the 'captured_screenshots/' directory.")
 
 
 def run_scan(command):
