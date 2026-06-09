@@ -100,18 +100,25 @@ def parse_nmap_output(raw_output):
                 web_title = title_match.group(1).strip()
                 total_found += 1
                 
-                # Commit to database and check if it's uniquely new
+                # 1. Commit metadata to database
                 is_new = save_or_update_asset(ip_address, current_port, current_service, web_title)
                 
-                # Visual Tagging: Mark brand new infrastructure with [NEW]
                 status_tag = "[NEW]" if is_new else "[KNOWN]"
                 if is_new:
                     new_discoveries += 1
                 
+                # Print clean, junk-filtered table row
                 print(f"{status_tag:<8} | {ip_address:<16} | {current_port:<6} | {current_service:<18} | {web_title}")
                 
+                # 2. Trigger Headless Screenshot Capture (Extraordinary Feature 3)
+                # This executes instantly while processing the target host
+                capture_screenshot(ip_address, current_port, web_title)
+                print("-" * 85) # Divider to make live terminal reading clean
+                
+                # Reset variables for the next port block
                 current_port = ""
                 current_service = ""
+
 
     print("-" * 85)
     print(f"[+] Scan Complete. Total Active: {total_found} | New Discoveries: {new_discoveries}")
